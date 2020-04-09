@@ -1,0 +1,24 @@
+
+{
+    "name": "Dr4ft P1cks",
+    "version": "1.0",
+    "description": "Record the pick order for cube dr4fts",
+    "manifest_version": 2,
+    "browser_action": {},
+    "content_scripts": [
+        {
+            "matches": ["*://*.dr4ft.info/*"],
+            "js": [
+                "./vendor/dexie.min.js",
+                "DBService.js",
+                "KeyPressService.js",
+                "SubmitUI.js",
+                "GameUtils.js",
+                "GameData.js",
+                "Zone.js",
+                "Card.js",
+                "content.js"
+            ]
+        }
+    ]
+}
