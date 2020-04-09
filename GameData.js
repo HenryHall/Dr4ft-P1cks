@@ -62,7 +62,7 @@ class GameData{
         } else {
             this.gameInfo = await GameUtils.getGameInfo();
         }
-        window.addEventListener('cardClick', e => this.onCardClick);
+        window.addEventListener('cardClick', this.onCardClick.bind(this));
         // window.addEventListener('draftSubmit', this.)
         this.intervalTimer = setInterval(this.watchZones.bind(this), 250);
     }
