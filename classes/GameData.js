@@ -37,9 +37,16 @@ class GameData{
         this.lastPackClick = '';
 
         /**
-         * @type {Array<string>}
+         * @typedef DraftPick
+         * @type {Object}
+         * @property {string} pick
+         * @property {Array.<string>} packSnapshot
          */
-        this.pickOrder = [];
+
+        /**
+         * @type {Array.<DraftPick>}
+         */
+        this.picks = [];
 
         /**
          * @type {Object.<string,Zone>}
@@ -50,10 +57,27 @@ class GameData{
          * @type {?number}
          */
         this.intervalTimer = null;
+
+        /**
+         * @type {EventListenerReference}
+         */
+        this.cardWatcher = new EventListenerReference(window, 'cardClick', this.onCardClick.bind(this));
     }
 
+    /**
+     * @type {string}
+     */
+    static GAME_VERSION = "1.0";
+
+    /**
+     * @type {string}
+     */
     static DB_TABLE = 'gamedata';
-    static DR4FT_P1CKS_URL = 'https://myapp.com/';
+
+    /**
+     * @type {string}
+     */
+    static DR4FT_P1CKS_URL = 'superinvalidurlplaceholder';
 
     async start(){
         let savedData = await this.checkForSavedData(this.gameId);
@@ -62,13 +86,15 @@ class GameData{
         } else {
             this.gameInfo = await GameUtils.getGameInfo();
         }
-        window.addEventListener('cardClick', this.onCardClick.bind(this));
-        // window.addEventListener('draftSubmit', this.)
+
+        this.cardWatcher.register();
         this.intervalTimer = setInterval(this.watchZones.bind(this), 250);
+
+        this.removeExtraneousSaves()
+            .catch(error => console.error(error));
     }
 
     stop(){
-        this.draftComplete = true;
         clearInterval(this.intervalTimer);
         this.intervalTimer = null;
         let submitUI = SubmitUI.open();
@@ -79,7 +105,7 @@ class GameData{
         const zoneElements = [...document.querySelectorAll('.zone')];
         zoneElements.forEach((zoneElement) => {
             let zone = Zone.newFromHTMLElement(zoneElement);
-            if(typeof this.zones[zone.name] === 'undefined' || zone.name === Zone.PACK){
+            if(typeof this.zones[zone.name] === 'undefined'){
                 this.zones[zone.name] = zone;
             }
     
@@ -87,6 +113,9 @@ class GameData{
             cardElements.forEach((cardElement) => {
                 if(!Card.isTagged(cardElement)){
                     let card = Card.new(cardElement, zone.name);
+                    if(zone.name === Zone.PACK){
+                        this.zones[Zone.PACK].addCard(card.name);
+                    }
                 }
             });
         });
@@ -97,7 +126,7 @@ class GameData{
      */
     increasePickCount(){
         this.pickCount++;
-        this.checkDraftComplete()
+        this.checkDraftComplete();
         return this.pickCount;
     }
 
@@ -105,7 +134,8 @@ class GameData{
      * @return {Boolean}
      */
     checkDraftComplete(){
-        if(this.gameInfo.expectedPickTotal === this.pickOrder){
+        if(this.gameInfo.expectedPickTotal === this.picks.length){
+            this.draftComplete = true;
             this.stop();
             return true;
         } else {
@@ -115,27 +145,30 @@ class GameData{
 
     /**
      * @param {CardClickEvent} event
+     * @return {Promise<string|void>}
      */
     async onCardClick(event){
         let {cardName, zoneName, keypressSnapshot} = event.detail;
-        let removedCard = null;
+        let removedCard;
 
         switch(zoneName){
             case Zone.PACK:
                 if(this.lastPackClick === cardName){
                     this.zones[Zone.MAINBOARD].addCard(cardName);
-                    this.pickOrder.push(cardName);
+                    let pickData = {pick: cardName, packSnapshot: this.zones[Zone.PACK].cards.slice()};
+                    this.zones[Zone.PACK].clearCards();
+                    this.picks.push(pickData);
                     this.lastPackClick = '';
                     this.increasePickCount();
                 } else {
                     this.lastPackClick = cardName;
-                    return; //Nothing to save
+                    return Promise.resolve(); //Nothing to save
                 }
                 break;
 
             case Zone.MAINBOARD:
                 removedCard = this.zones[Zone.MAINBOARD].removeCard(cardName);
-                if(keypressSnapshot['Shift'].isDown){
+                if(keypressSnapshot.getKeyStatusByName('Shift')){
                     this.zones[Zone.JUNK].addCard(removedCard);    
                 } else {
                     this.zones[Zone.SIDEBOARD].addCard(removedCard);    
@@ -144,7 +177,7 @@ class GameData{
 
             case Zone.SIDEBOARD:
                 removedCard = this.zones[Zone.SIDEBOARD].removeCard(cardName);
-                if(keypressSnapshot['Shift'].isDown){
+                if(keypressSnapshot.getKeyStatusByName('Shift')){
                     this.zones[Zone.JUNK].addCard(removedCard);
                 } else {
                     this.zones[Zone.MAINBOARD].addCard(removedCard);
@@ -153,7 +186,7 @@ class GameData{
 
             case Zone.JUNK:
                 removedCard = this.zones[Zone.JUNK].removeCard(cardName);
-                if(keypressSnapshot['Shift'].isDown){
+                if(keypressSnapshot.getKeyStatusByName('Shift')){
                     this.zones[Zone.MAINBOARD].addCard(removedCard);
                 } else {
                     this.zones[Zone.SIDEBOARD].addCard(removedCard);
@@ -166,7 +199,7 @@ class GameData{
 
         return this.save()
             .catch((error) => {
-                console.log(`Failed to save game data.`, error);
+                console.error(`Failed to save game data.`, error);
             });
     }
 
@@ -174,25 +207,27 @@ class GameData{
      * @typedef GameDataObject
      * @type {Object}
      * @property {string} id
+     * @property {string} gameVersion
      * @property {GameRoomInfo} gameInfo
      * @property {Boolean} submitted
      * @property {Boolean} draftComplete
      * @property {number} pickCount
-     * @property {Array.<string>} pickOrder
+     * @property {Array.<DraftPick>} picks
      * @property {Array.<Zone>} zones
      */
 
     /**
      * @return {GameDataObject}
      */
-    serealize(){
+    serialize(){
         return {
             id: this.gameId,
+            gameVersion: GameData.GAME_VERSION,
             gameInfo: this.gameInfo,
             submitted: this.submitted,
             draftComplete: this.draftComplete,
             pickCount: this.pickCount,
-            pickOrder: this.pickOrder,
+            picks: this.picks,
             zones: Object.values(this.zones).map(zone =>  zone.serialize())
         };
     }
@@ -210,14 +245,15 @@ class GameData{
      * Resolves primary key, GameData.gameId
      * @return {Promise<string>}
      */
-    save(){
+    async save(){
         let gameTable = DBService.getTableInstance(GameData.DB_TABLE);
 
         let entry = {
             id: this.gameId,
             modified: new Date(),
+            draftcompleted: this.draftComplete,
             submitted: this.submitted,
-            data: this.serealize()
+            data: this.serialize()
         };
 
         return gameTable.put(entry);
@@ -232,26 +268,38 @@ class GameData{
         this.draftComplete = gameDataObject.draftComplete;
         this.gameId = gameDataObject.id;
         this.gameInfo = gameDataObject.gameInfo;
-        this.pickOrder = gameDataObject.pickOrder;
+        this.picks = gameDataObject.picks;
         this.zones = {};
 
+        //todo: something wrong with pack data loading, test in morning
         //Refreshing the page sets all cards from sideboard/junk back into main
         //Move cards from all other zones into mainboard
         gameDataObject.zones.map(zoneData => this.zones[zoneData.name] = new Zone(zoneData));
         Object.values(this.zones).forEach((zone) => {
-            if(zone.name !== Zone.MAINBOARD){
-                for(let i=zone.cards.length-1; i >= 0; i--){
-                    let cardName = zone.cards[i];
-                    zone.removeCard(cardName);
-                    this.zones[Zone.MAINBOARD].addCard(cardName);
-                }
+            switch(zone.name){
+                case Zone.MAINBOARD:
+                    break;
+
+                case Zone.SIDEBOARD:
+                case Zone.JUNK:
+                    let cardArrayClone = zone.clearCards();
+                    cardArrayClone.map(card => this.zones[Zone.MAINBOARD].addCard(card));
+                    break;
+
+                case Zone.PACK:
+                    zone.clearCards();  //start fresh
+                    break;
+
+                default:
+                    throw new Error(`Unable to load unknown zone ${zone.name}`);
             }
         });
     }
 
     //todo
     async submitDraft(){
-        let gameDataObject = this.serealize();
+        this.cardWatcher.unregister();
+        let gameDataObject = this.serialize();
 
         return fetch(GameData.DR4FT_P1CKS_URL + 'submit', {
             method: 'POST',
@@ -275,5 +323,14 @@ class GameData{
             console.error(error);
             //todo
         });
+    }
+
+    async removeExtraneousSaves(){
+        let gameTable = DBService.getTableInstance(GameData.DB_TABLE);
+        return gameTable
+            .where("id")
+            .notEqual(this.gameId)
+            .and(entry => entry.submitted === true || entry.draftcompleted === false)
+            .delete();
     }
 }

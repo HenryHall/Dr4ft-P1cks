@@ -2,11 +2,11 @@
 /**
  * @namespace DBService
  */
-const DBService = (function(global){
+const DBService = (function(){
 
     let _database = null;
 
-    class DBService{};
+    class DBService{}
     
     DBService.DB_NAME = 'Dr4ftP1cks';
 
@@ -15,7 +15,7 @@ const DBService = (function(global){
 
         db.version(1)
             .stores({
-                gamedata: 'id,modified,submitted'
+                gamedata: 'id,modified'
             });
 
         _database = db;

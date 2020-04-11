@@ -7,7 +7,7 @@ class GameUtils{
      * @returns {Boolean}
      */
     static inGameRoom(){
-        const hashMatch = /#g/;
+        const hashMatch = /#g\/[a-z0-9\-]+/;
         return hashMatch.test(document.location.hash);
     }
 
@@ -16,7 +16,7 @@ class GameUtils{
      * @returns {string}
      */
     static getGameId(){
-        const hashRegex = /(?![\#g\/])[a-z0-9\-]+/;
+        const hashRegex = /(?![#g\/])[a-z0-9\-]+/;
         const gameId = document.location.hash.match(hashRegex)[0];
         if(!gameId){ throw new Error(`No game has found!`); }
 
@@ -41,7 +41,7 @@ class GameUtils{
         attempts = attempts || 1;
 
         return new Promise((resolve, reject) => {
-            if(attempts > 5){ return reject( new Error('Max attempts') ); }
+            if(attempts > 10){ return reject( new Error('Max attempts') ); }
     
             try {
                 const controlsPanel = document.querySelector('.start-controls');
@@ -58,9 +58,9 @@ class GameUtils{
                         gameRoomInfo.draftType = info.match(/(?<=Type: )[A-Za-z0-9 ]+/)[0].trim();
                     } else if (/Info/.test(info)){
                         let infoMatch = info.match(/[0-9]+/g);
-                        gameRoomInfo.packCount = infoMatch[0];
-                        gameRoomInfo.packSize = infoMatch[1];
-                        gameRoomInfo.poolSize = infoMatch[2];
+                        gameRoomInfo.packCount = parseInt(infoMatch[0]);
+                        gameRoomInfo.packSize = parseInt(infoMatch[1]);
+                        gameRoomInfo.poolSize = parseInt(infoMatch[2]);
                         gameRoomInfo.expectedPickTotal = gameRoomInfo.packCount * gameRoomInfo.packSize;
                     }
                 });

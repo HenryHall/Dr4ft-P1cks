@@ -41,14 +41,51 @@ const KeyPressService = (function(){
              * @param {boolean} strictMode 
              */
             constructor(strictMode){
+                /**
+                 * @type {boolean}
+                 */
                 this.strictMode = strictMode || false;
-                window.addEventListener('keydown', (e) => setKeyStatus(e, true));
-                window.addEventListener('keyup', (e) => setKeyStatus(e, false));
+
+                /**
+                 * @type {EventListenerReference}
+                 */
+                this.keyDownListener = new EventListenerReference(window,'keydown', (e) => setKeyStatus(e, true));
+
+                /**
+                 * @type {EventListenerReference}
+                 */
+                this.keyUpListener = new EventListenerReference(window, 'keyup', (e) => setKeyStatus(e, false));
+
+                this.keyDownListener.register();
+                this.keyUpListener.register();
             }
 
             /**
-             * @param {number} keyCode 
-             * @return {boolean}
+             * @return {Object.<string,KeyStatus>}
+             */
+            getSnapshot(){
+                let keysCopy = JSON.parse(JSON.stringify(keys));
+                return new KeypressSnapshot(keysCopy, this.strictMode);
+            }
+        }
+
+
+        class KeypressSnapshot{
+            constructor(keysCopy, strictMode){
+                /**
+                 * @type {Object.<string,KeyStatus>}
+                 */
+                this.keys = keysCopy;
+
+                /**
+                 * @type {boolean}
+                 */
+                this.strictMode = strictMode;
+            }
+
+            /**
+             * @param {number} keyCode
+             * @return {?boolean}
              */
             getKeyStatusByCode(keyCode){
                 let key = Object.values(keys).find(key => key.id === keyCode);
@@ -65,7 +102,7 @@ const KeyPressService = (function(){
 
             /**
              * @param {string} keyName 
-             * @return {boolean}
+             * @return {?boolean}
              */
             getKeyStatusByName(keyName){
                 if(keys.hasOwnProperty(keyName)){
@@ -78,15 +115,8 @@ const KeyPressService = (function(){
                     }
                 }
             }
-
-            /**
-             * @return {Object.<string,KeyStatus>}
-             */
-            getSnapshot(){
-                return JSON.parse(JSON.stringify(keys));
-            }
         }
 
-        return new KeyPressService();
+        return new KeyPressService(false);
     }
 )();

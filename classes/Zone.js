@@ -42,6 +42,15 @@ class Zone{
     }
 
     /**
+     * @returns {Array.<string>}
+     */
+    clearCards(){
+        let cardArrayClone = this.cards.slice();
+        this.cards = [];
+        return cardArrayClone;
+    }
+
+    /**
      * @return {ZoneDataObject}
      */
     serialize(){

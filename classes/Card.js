@@ -1,7 +1,7 @@
 
 class Card{
     /**
-     * @param {string} cardElement 
+     * @param {string} cardName
      * @param {string} zoneName
      */
     constructor(cardName, zoneName){
@@ -14,6 +14,11 @@ class Card{
          * @type {string}
          */
         this.zoneName = zoneName;
+
+        /**
+         * @type {?EventListenerReference}
+         */
+        this.clickListenerReference = null;
     }
 
     /**
@@ -49,9 +54,15 @@ class Card{
 
     tag(htmlElement){
         htmlElement.setAttribute('tagged', 'null');
-        htmlElement.addEventListener('click', this._onClick.bind(this));
+        this.clickListenerReference = new EventListenerReference(htmlElement, 'click', this._onClick.bind(this));
+        this.clickListenerReference.register();
     };
 
+    /**
+     * @param {HTMLElement} htmlElement 
+     * @param {string} zoneName
+     * @returns {Card}
+     */
     static new(htmlElement, zoneName){
         let cardName = Card.extractName(htmlElement);
         let card = new Card(cardName, zoneName);

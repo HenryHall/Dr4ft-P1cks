@@ -10,13 +10,14 @@
             "matches": ["*://*.dr4ft.info/*"],
             "js": [
                 "./vendor/dexie.min.js",
-                "DBService.js",
-                "KeyPressService.js",
-                "SubmitUI.js",
-                "GameUtils.js",
-                "GameData.js",
-                "Zone.js",
-                "Card.js",
+                "./classes/EventListenerReference.js",
+                "./classes/DBService.js",
+                "./classes/KeyPressService.js",
+                "./classes/SubmitUI.js",
+                "./classes/GameUtils.js",
+                "./classes/GameData.js",
+                "./classes/Zone.js",
+                "./classes/Card.js",
                 "content.js"
             ]
         }
