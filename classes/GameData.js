@@ -18,13 +18,13 @@ class GameData{
 
         /**
          * @type {Boolean}
-         */        
+         */
         this.submitted = false;
 
         /**
          * @type {Boolean}
          */
-        this.draftComplete = false;
+        this.draftCompleted = false;
 
         /**
          * @type {number}
@@ -49,19 +49,29 @@ class GameData{
         this.picks = [];
 
         /**
-         * @type {Object.<string,Zone>}
+         * @type {Object.<string,ZoneDataObject>}
          */
         this.zones = {};
-
-        /**
-         * @type {?number}
-         */
-        this.intervalTimer = null;
 
         /**
          * @type {EventListenerReference}
          */
         this.cardWatcher = new EventListenerReference(window, 'cardClick', this.onCardClick.bind(this));
+
+        /**
+         * @type {?Promise}
+         */
+        this.runningGamePromise = null;
+
+        /**
+         * @type {?Function}
+         */
+        this.resolveRunningPromise = null;
+
+        /**
+         * @type {?Function}
+         */
+        this.rejectRunningPromise = null;
     }
 
     /**
@@ -77,48 +87,38 @@ class GameData{
     /**
      * @type {string}
      */
-    static DR4FT_P1CKS_URL = 'superinvalidurlplaceholder';
+    static DR4FT_P1CKS_URL = 'https://dr4ftp1cks.herokuapp.com/';
 
     async start(){
-        let savedData = await this.checkForSavedData(this.gameId);
+        this.runningGamePromise = new Promise((resolve, reject) => {
+            this.resolveRunningPromise = resolve;
+            this.rejectRunningPromise = reject;
+        });
+
+        this.cardWatcher.register();
+
+        //No need to watch the result, only care if it errors
+        this.submitPreviousSaves()
+            .then(this.removeExtraneousSaves.bind(this))
+            .catch(error => console.error(error));
+
+        let savedData = await this.checkForSavedData(this.gameId)
         if(savedData){
             this.load(savedData);
+            this.checkDraftCompleted();
         } else {
             this.gameInfo = await GameUtils.getGameInfo();
         }
-
-        this.cardWatcher.register();
-        this.intervalTimer = setInterval(this.watchZones.bind(this), 250);
-
-        this.removeExtraneousSaves()
-            .catch(error => console.error(error));
     }
 
-    stop(){
-        clearInterval(this.intervalTimer);
-        this.intervalTimer = null;
-        let submitUI = SubmitUI.open();
-        submitUI.registerCallback(this.submitDraft.bind(this));
-    }
-
-    watchZones(){
-        const zoneElements = [...document.querySelectorAll('.zone')];
-        zoneElements.forEach((zoneElement) => {
-            let zone = Zone.newFromHTMLElement(zoneElement);
-            if(typeof this.zones[zone.name] === 'undefined'){
-                this.zones[zone.name] = zone;
-            }
-    
-            let cardElements = [...zoneElement.querySelectorAll('.card')];
-            cardElements.forEach((cardElement) => {
-                if(!Card.isTagged(cardElement)){
-                    let card = Card.new(cardElement, zone.name);
-                    if(zone.name === Zone.PACK){
-                        this.zones[Zone.PACK].addCard(card.name);
-                    }
-                }
-            });
-        });
+    /**
+     * Used for ending the game early, before checkDraftCompleted returns true
+     * @param {string} [reason]
+     */
+    stop(reason){
+        reason = reason || "The draft was ended early."
+        this.cardWatcher.unregister();
+        this.rejectRunningPromise(reason);
     }
 
     /**
@@ -126,17 +126,17 @@ class GameData{
      */
     increasePickCount(){
         this.pickCount++;
-        this.checkDraftComplete();
+        this.checkDraftCompleted();
         return this.pickCount;
     }
 
     /**
      * @return {Boolean}
      */
-    checkDraftComplete(){
+    checkDraftCompleted(){
         if(this.gameInfo.expectedPickTotal === this.picks.length){
-            this.draftComplete = true;
-            this.stop();
+            this.draftCompleted = true;
+            this.resolveRunningPromise();
             return true;
         } else {
             return false;
@@ -210,7 +210,7 @@ class GameData{
      * @property {string} gameVersion
      * @property {GameRoomInfo} gameInfo
      * @property {Boolean} submitted
-     * @property {Boolean} draftComplete
+     * @property {Boolean} draftCompleted
      * @property {number} pickCount
      * @property {Array.<DraftPick>} picks
      * @property {Array.<Zone>} zones
@@ -225,7 +225,7 @@ class GameData{
             gameVersion: GameData.GAME_VERSION,
             gameInfo: this.gameInfo,
             submitted: this.submitted,
-            draftComplete: this.draftComplete,
+            draftCompleted: this.draftCompleted,
             pickCount: this.pickCount,
             picks: this.picks,
             zones: Object.values(this.zones).map(zone =>  zone.serialize())
@@ -242,16 +242,29 @@ class GameData{
     }
 
     /**
+     * @typedef GameSaveState
+     * @type {Object}
+     * @property {string} id
+     * @property {Date} modified
+     * @property {boolean} draftCompleted
+     * @property {boolean} submitted
+     * @property {GameDataObject} data
+     */
+
+    /**
      * Resolves primary key, GameData.gameId
      * @return {Promise<string>}
      */
     async save(){
         let gameTable = DBService.getTableInstance(GameData.DB_TABLE);
 
+        /**
+         * @type {GameSaveState}
+         */
         let entry = {
             id: this.gameId,
             modified: new Date(),
-            draftcompleted: this.draftComplete,
+            draftCompleted: this.draftCompleted,
             submitted: this.submitted,
             data: this.serialize()
         };
@@ -265,7 +278,7 @@ class GameData{
     load(gameDataObject){
         this.pickCount = Number(gameDataObject.pickCount);
         this.submitted = gameDataObject.submitted;
-        this.draftComplete = gameDataObject.draftComplete;
+        this.draftCompleted = gameDataObject.draftCompleted;
         this.gameId = gameDataObject.id;
         this.gameInfo = gameDataObject.gameInfo;
         this.picks = gameDataObject.picks;
@@ -296,41 +309,99 @@ class GameData{
         });
     }
 
-    //todo
+    /**
+     * @return {Promise<Response>}
+     */
     async submitDraft(){
         this.cardWatcher.unregister();
         let gameDataObject = this.serialize();
 
-        return fetch(GameData.DR4FT_P1CKS_URL + 'submit', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(gameDataObject)
-        })
-        .then((response) => {
-            if(response.ok){
+        return this.uploadDraft(gameDataObject)
+            .then((response) => {
                 this.submitted = true;
                 this.save()
                     .catch((error) => {
                         throw new Error(error);
                     });
-            } else {
-                throw new Error(response.statusText);
-            }
-        })
-        .catch((error) => {
-            console.error(error);
-            //todo
-        });
+            });
     }
 
+    /**
+     * @returns {Promise<number>}
+     */
     async removeExtraneousSaves(){
         let gameTable = DBService.getTableInstance(GameData.DB_TABLE);
         return gameTable
             .where("id")
             .notEqual(this.gameId)
-            .and(entry => entry.submitted === true || entry.draftcompleted === false)
+            .and(entry => entry.submitted === true || entry.draftCompleted === false)
             .delete();
+    }
+
+    /**
+     * @returns {Array.<Promise<Response>>}
+     */
+    async submitPreviousSaves(){
+        let gameTable = DBService.getTableInstance(GameData.DB_TABLE);
+        let savePromises = [];
+
+        /**
+         * @type {Array.<GameSaveState>}
+         */
+        let previousSaves = await gameTable
+            .where("id")
+            .notEqual(this.gameId)
+            .and(entry => entry.submitted === false || entry.draftCompleted === true)
+            .each((gameSaveState) => {
+                //todo: should this be using the bulk upload method instead?
+                let savePromise = this.uploadDraft(gameSaveState.data)
+                    .then(function(){
+                        gameSaveState.submitted = true;
+                        return gameTable.put(gameSaveState);
+                    });
+                savePromises.push( savePromise );
+            });
+
+        return Promise.allSettled(savePromises);
+    }
+
+    /**
+     * @param {GameDataObject} gameDataObject
+     * @returns {Promise<Response>}
+     */
+    async uploadDraft(gameDataObject){
+        return fetch(GameData.DR4FT_P1CKS_URL + 'submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify(gameDataObject)
+        })
+            .then((response) => {
+                if(response.ok){
+                    return response;
+                } else {
+                    throw new Error(response.statusText);
+                }
+            });
+    }
+
+    //Todo, is this needed?
+    async bulkUploadDrafts(gameDataObjects){
+        return fetch(GameData.DR4FT_P1CKS_URL + 'submit/bulk', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(gameDataObjects)
+        })
+            .then((response) => {
+                if(response.ok){
+                    return response;
+                } else {
+                    throw new Error(response.statusText);
+                }
+            });
     }
 }

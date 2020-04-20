@@ -1,0 +1,32 @@
+<html>
+    <head>
+        <title>Dr4ft P1cks Settings</title>
+        <link rel="stylesheet" href="bootstrap.min.css">
+        <link rel="stylesheet" href="popup.css">
+    </head>
+
+    <body>
+        <div class="jumbotron">
+            <h1>Dr4ft P1cks</h1>
+        </div>
+
+        <div class="main">
+            <div id="errorMessage" class="col-xs-12 hidden">
+            </div>
+
+            <div class="col-xs-12">
+                <div class="input-group">
+                    <span class="input-group-addon" id="sizing-addon1">API Key</span>
+                    <input id="api-key-input" type="text" class="form-control">
+                </div>
+            </div>
+
+            <div class="btnRow col-xs-8 col-xs-offset-2">
+                <button id="api-key-submit" class="btn btn-block btn-primary hidden" disabled>Save</button>
+                <button id="api-key-edit" class="btn btn-block btn-primary hidden" disabled>Edit</button>
+            </div>
+        </div>
+
+        <script src="popup.js"></script>
+    </body>
+</html>

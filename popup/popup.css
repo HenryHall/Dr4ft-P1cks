@@ -1,0 +1,29 @@
+
+body {
+    width: 350px;
+}
+
+.jumbotron {
+    padding: 1px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.main {
+    margin-bottom: 15px;
+}
+
+#errorMessage {
+    text-align: center;
+    font-weight: bold;
+    color: #ac2925;
+}
+
+.btnRow {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.btn-block+.btn-block {
+    margin: 0px;
+}

@@ -4,7 +4,22 @@
     "version": "1.0",
     "description": "Record the pick order for cube dr4fts",
     "manifest_version": 2,
-    "browser_action": {},
+    "permissions": [
+        "storage",
+        "activeTab",
+        "declarativeContent",
+        "https://Dr4ftP1cks.herokuapp.com/"
+    ],
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": false
+    },
+    "browser_action": {
+        "default_icon": {},
+        "default_title": "D-P1cks",
+        "default_popup": "popup/popup.html",
+        "browser_style": true
+    },
     "content_scripts": [
         {
             "matches": ["*://*.dr4ft.info/*"],

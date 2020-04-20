@@ -17,16 +17,28 @@ class SubmitUI{
 
     /**
      * @param {Function} callbackFn
+     * @return {EventListenerReference}
      */
     registerCallback(callbackFn){
         let target = this.element.querySelector('.draft-submit');
         let eventListenerReference = new EventListenerReference(target, 'click', callbackFn);
         eventListenerReference.register();
         this.eventCallbackReferences.push(eventListenerReference);
+        return eventListenerReference;
     }
 
     unregisterAllCallbacks(){
         this.eventCallbackReferences.forEach(eventCallbackReference => eventCallbackReference.unregister());
+    }
+
+    disableButton(){
+        let submitButton = this.element.querySelector('.draft-submit');
+        submitButton.setAttribute("disabled", "");
+    }
+
+    enableButton(){
+        let submitButton = this.element.querySelector('.draft-submit');
+        submitButton.removeAttribute("disabled");
     }
 
     /**
@@ -59,6 +71,8 @@ class SubmitUI{
      */
     setSuccess(successMsg){
         this._setMessage(successMsg, "#009f00");
+        let submitButton = this.element.querySelector('.draft-submit');
+        submitButton.style.display = 'none';
     }
 
     /**
@@ -74,10 +88,15 @@ class SubmitUI{
         legend.style.fontWeight = 'normal';
         legend.innerText = "Dr4ft P1cks";
 
-        let textDiv = document.createElement('div');
-        textDiv.classList.add('submit-message');
-        textDiv.style.marginBottom = '10px';
-        textDiv.innerText = "Submit your draft data to Dr4ft P1cks";
+        let messageDiv = document.createElement('div');
+        messageDiv.classList.add('submit-message');
+        messageDiv.innerText = "Submit your draft data to Dr4ft P1cks.";
+
+        let noteDiv = document.createElement('div');
+        noteDiv.style.fontSize = '.75em';
+        noteDiv.style.color = "#555";
+        noteDiv.style.marginBottom = '10px';
+        noteDiv.innerText = "Otherwise, submitted automatically next draft.";
 
         let submitBtn = document.createElement('button');
         submitBtn.classList.add('btn', 'btn-lg', 'draft-submit');
@@ -85,7 +104,8 @@ class SubmitUI{
         submitBtn.addEventListener('click', (e) => console.log(`Submit clicked!`))    //todo
 
         fieldset.appendChild(legend);
-        fieldset.appendChild(textDiv);
+        fieldset.appendChild(messageDiv);
+        fieldset.appendChild(noteDiv);
         fieldset.appendChild(submitBtn);
 
         return fieldset;
